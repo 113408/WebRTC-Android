@@ -1,12 +1,17 @@
-package com.mayday.webrtc
+package com.mayday.webrtcz
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Bundle
+import android.support.v4.app.ActivityCompat
+import android.support.v4.content.ContextCompat
 import android.support.v7.app.AppCompatActivity
 import android.util.Log
 import android.view.View
 import android.widget.Button
+import com.google.gson.Gson
+import okhttp3.ResponseBody
 import org.webrtc.*
-import com.mayday.webrtc.webrtc.R
 import org.webrtc.IceCandidate
 import org.webrtc.PeerConnection
 import org.webrtc.VideoRenderer
@@ -16,35 +21,40 @@ import org.webrtc.MediaConstraints
 import org.webrtc.SessionDescription
 import org.webrtc.VideoCapturer
 import org.webrtc.PeerConnectionFactory
-import org.webrtc.CameraVideoCapturer
 import org.webrtc.EglBase
 import org.webrtc.SurfaceViewRenderer
 import org.webrtc.CameraEnumerator
 import org.webrtc.Camera1Enumerator
-
-
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.http.*
 
 
 class MainActivity : AppCompatActivity(), View.OnClickListener {
-    lateinit var peerConnectionFactory: PeerConnectionFactory
-    lateinit var audioConstraints: MediaConstraints
-    lateinit var videoConstraints: MediaConstraints
-    lateinit var sdpConstraints: MediaConstraints
-    lateinit var videoSource: VideoSource
-    lateinit var localVideoTrack: VideoTrack
-    lateinit var audioSource: AudioSource
-    lateinit var localAudioTrack: AudioTrack
+    private lateinit var peerConnectionFactory: PeerConnectionFactory
+    private lateinit var audioConstraints: MediaConstraints
+    private lateinit var sdpConstraints: MediaConstraints
+    private lateinit var videoSource: VideoSource
+    private lateinit var localVideoTrack: VideoTrack
+    private lateinit var audioSource: AudioSource
+    private lateinit var localAudioTrack: AudioTrack
 
-    lateinit var localVideoView: SurfaceViewRenderer
-    lateinit var remoteVideoView: SurfaceViewRenderer
-    lateinit var localRenderer: VideoRenderer
-    lateinit var remoteRenderer: VideoRenderer
+    private lateinit var localVideoView: SurfaceViewRenderer
+    private lateinit var remoteVideoView: SurfaceViewRenderer
+    private lateinit var localRenderer: VideoRenderer
+    private lateinit var remoteRenderer: VideoRenderer
 
     var localPeer: PeerConnection? = null
     var remotePeer: PeerConnection? = null
     lateinit var start: Button
-    lateinit var call: Button
-    lateinit var hangup: Button
+    private lateinit var call: Button
+    private lateinit var hangup: Button
+    private lateinit var rootEglBase: EglBase
+
+    private var videoCapturerAndroid: VideoCapturer? = null
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,6 +63,22 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
         initViews()
         initVideos()
+        requestPermission()
+    }
+
+    private fun requestPermission(){
+        if(ContextCompat.checkSelfPermission(
+                this@MainActivity,
+                Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(
+                this@MainActivity,
+                Manifest.permission.CAMERA)
+            != PackageManager.PERMISSION_GRANTED
+        ){
+            ActivityCompat.requestPermissions(this,
+                arrayOf(Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO),30)
+        }
     }
 
 
@@ -69,36 +95,12 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     }
 
     private fun initVideos() {
-        val rootEglBase = EglBase.create()
+        rootEglBase = EglBase.create()
         localVideoView.init(rootEglBase.eglBaseContext, null)
         remoteVideoView.init(rootEglBase.eglBaseContext, null)
         localVideoView.setZOrderMediaOverlay(true)
         remoteVideoView.setZOrderMediaOverlay(true)
     }
-
-
-    // Cycle through likely device names for the camera and return the first
-    // capturer that works, or crash if none do.
-    private fun getVideoCapturer(eventsHandler: CameraVideoCapturer.CameraEventsHandler): VideoCapturer {
-        val cameraFacing = arrayOf("front", "back")
-        val cameraIndex = intArrayOf(0, 1)
-        val cameraOrientation = intArrayOf(0, 90, 180, 270)
-        for (facing in cameraFacing) {
-            for (index in cameraIndex) {
-                for (orientation in cameraOrientation) {
-                    val name = "Camera " + index + ", Facing " + facing +
-                            ", Orientation " + orientation
-                    val capturer = createVideoCapturer()
-                    if (capturer != null) {
-                        Log.d("Using camera: ", name)
-                        return capturer
-                    }
-                }
-            }
-        }
-        throw RuntimeException("Failed to open capture")
-    }
-
 
     override fun onClick(v: View) {
         when (v.id) {
@@ -120,19 +122,23 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         call.isEnabled = true
         //Initialize PeerConnectionFactory globals.
         //Params are context, initAudio,initVideo and videoCodecHwAcceleration
-        PeerConnectionFactory.initializeAndroidGlobals(this, true, true, true)
+        //Initialize PeerConnectionFactory globals.
 
-        //Create a new PeerConnectionFactory instance.
+        PeerConnectionFactory.initializeAndroidGlobals(this,true)
+        //Create a new PeerConnectionFactory instance - using Hardware encoder and decoder.
         val options = PeerConnectionFactory.Options()
-        peerConnectionFactory = PeerConnectionFactory(options)
+        val defaultVideoEncoderFactory = HardwareVideoEncoderFactory(rootEglBase.eglBaseContext, /* enableIntelVp8Encoder */true, /* enableH264HighProfile */true
+        )
+        val defaultVideoDecoderFactory = HardwareVideoDecoderFactory(rootEglBase.eglBaseContext)
+        peerConnectionFactory = PeerConnectionFactory(options, defaultVideoEncoderFactory, defaultVideoDecoderFactory)
+
 
 
         //Now create a VideoCapturer instance. Callback methods are there if you want to do something! Duh!
-        val videoCapturerAndroid = getVideoCapturer(CustomCameraEventsHandler())
+        videoCapturerAndroid = createVideoCapturer()
 
         //Create MediaConstraints - Will be useful for specifying video and audio constraints.
         audioConstraints = MediaConstraints()
-        videoConstraints = MediaConstraints()
 
         //Create a VideoSource instance
         videoSource = peerConnectionFactory.createVideoSource(videoCapturerAndroid)
@@ -156,8 +162,12 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         start.isEnabled = false
         call.isEnabled = false
         hangup.isEnabled = true
+
+        //we will start capturing the video from the camera
+        //width,height and fps
+        videoCapturerAndroid?.startCapture(1000, 1000, 30)
         //we already have video and audio tracks. Now create peerconnections
-        val iceServers = arrayListOf<PeerConnection.IceServer>()
+        val iceServers = arrayListOf(PeerConnection.IceServer("stun:stun.l.google.com:19302"))
 
         //create sdpConstraints
         sdpConstraints = MediaConstraints()
@@ -207,6 +217,8 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                 super.onCreateSuccess(sessionDescription)
                 localPeer!!.setLocalDescription(CustomSdpObserver("localSetLocalDesc"), sessionDescription)
                 remotePeer!!.setRemoteDescription(CustomSdpObserver("remoteSetRemoteDesc"), sessionDescription)
+                localPeer
+                sendOffer()
                 remotePeer!!.createAnswer(object : CustomSdpObserver("remoteCreateOffer") {
                     override fun onCreateSuccess(sessionDescription: SessionDescription) {
                         //remote answer generated. Now set it as local desc for remote peer and remote desc for local peer.
@@ -220,12 +232,45 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         }, sdpConstraints)
     }
 
+    private fun sendOffer() {
+        val retrofit = Retrofit.Builder()
+            .addConverterFactory(GsonConverterFactory.create())
+            .baseUrl("https://us-central1-mayday-ios.cloudfunctions.net/")
+            .build()
+        retrofit.callbackExecutor()
+        val service = retrofit.create(WebRTCService::class.java)
+        val call = service.createOffer(localPeer?.localDescription!!)
+        call.enqueue(object : Callback<ResponseBody> {
+            override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                if (response.isSuccessful) {
+                    Log.i("WebRTC - Firebase", "offer created successfully")
+
+                } else {
+                    val statusCode = response.code()
+                    val errorBody = response.errorBody()
+                    Log.e(
+                        "WebRTC - Firebase",
+                        "There was an error while creating the offer on firebase. Error :${errorBody?.string()} . Status Code: $statusCode"
+                    )
+                }
+            }
+
+            override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                Log.e("WebRTC - Firebase", "error while connecting to firebase cloud function", t)
+            }
+
+        })
+    }
+
 
     private fun hangup() {
         localPeer!!.close()
         remotePeer!!.close()
         localPeer = null
         remotePeer = null
+        videoCapturerAndroid?.stopCapture()
+        localVideoView.clearImage()
+        remoteVideoView.clearImage()
         start.isEnabled = true
         call.isEnabled = false
         hangup.isEnabled = false
@@ -234,7 +279,6 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     private fun gotRemoteStream(stream: MediaStream) {
         //we have remote video stream. add to the renderer.
         val videoTrack = stream.videoTracks.first
-        val audioTrack = stream.audioTracks.first
         runOnUiThread {
             try {
                 remoteRenderer = VideoRenderer(remoteVideoView)
@@ -278,7 +322,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         // We were not able to find a front cam. Look for other cameras
         for (deviceName in deviceNames) {
             if (!enumerator.isFrontFacing(deviceName)) {
-                val videoCapturer = enumerator.createCapturer(deviceName, null)
+                val videoCapturer = enumerator.createCapturer(deviceName, CustomCameraEventsHandler())
                 if (videoCapturer != null) {
                     return videoCapturer
                 }
@@ -289,4 +333,8 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     }
 
 
+    interface WebRTCService {
+        @POST("getice")
+        fun createOffer(@Body body: SessionDescription) : Call<ResponseBody>
+    }
 }

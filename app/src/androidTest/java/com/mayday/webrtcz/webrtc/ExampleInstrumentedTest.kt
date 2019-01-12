@@ -1,4 +1,4 @@
-package com.mayday.webrtc.webrtc
+package com.mayday.webrtcz.webrtc
 
 import android.support.test.InstrumentationRegistry
 import android.support.test.runner.AndroidJUnit4

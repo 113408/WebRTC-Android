@@ -1,4 +1,4 @@
-package com.mayday.webrtc.webrtc
+package com.mayday.webrtcz.webrtc
 
 import org.junit.Test
 

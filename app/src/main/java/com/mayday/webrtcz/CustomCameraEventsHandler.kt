@@ -1,4 +1,4 @@
-package com.mayday.webrtc
+package com.mayday.webrtcz
 
 import android.util.Log
 import org.webrtc.CameraVideoCapturer
@@ -22,10 +22,6 @@ class CustomCameraEventsHandler : CameraVideoCapturer.CameraEventsHandler {
 
     override fun onCameraFreezed(s: String) {
         Log.d(logTag, "onCameraFreezed() called with: s = [$s]")
-    }
-
-    fun onCameraOpening(i: Int) {
-
     }
 
     override fun onFirstFrameAvailable() {
