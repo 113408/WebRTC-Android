@@ -1,34 +1,34 @@
 package com.mayday.webrtcz
 
-import android.util.Log
 import org.webrtc.CameraVideoCapturer
+import timber.log.Timber
 
 
 class CustomCameraEventsHandler : CameraVideoCapturer.CameraEventsHandler {
+    init {
+        Timber.tag("CustomCameraHandler")
+    }
     override fun onCameraOpening(cameraId: String?) {
-        Log.d(logTag, "onCameraOpening() called with: cameraId = [$cameraId]")
+        Timber.d("onCameraOpening() called with: cameraId = [$cameraId]")
     }
 
     override fun onCameraDisconnected() {
-        Log.d(logTag, "onCameraDisconnect() called")
+        Timber.d("onCameraDisconnect() called")
     }
 
-    private val logTag = this.javaClass.canonicalName
-
-
     override fun onCameraError(s: String) {
-        Log.d(logTag, "onCameraError() called with: s = [$s]")
+        Timber.d("onCameraError() called with: s = [$s]")
     }
 
     override fun onCameraFreezed(s: String) {
-        Log.d(logTag, "onCameraFreezed() called with: s = [$s]")
+        Timber.d("onCameraFreezed() called with: s = [$s]")
     }
 
     override fun onFirstFrameAvailable() {
-        Log.d(logTag, "onFirstFrameAvailable() called")
+        Timber.d("onFirstFrameAvailable() called")
     }
 
     override fun onCameraClosed() {
-        Log.d(logTag, "onCameraClosed() called")
+        Timber.d("onCameraClosed() called")
     }
 }

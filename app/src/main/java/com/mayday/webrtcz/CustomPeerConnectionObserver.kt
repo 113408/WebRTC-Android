@@ -1,55 +1,54 @@
 package com.mayday.webrtcz
 
-import android.util.Log
 import org.webrtc.*
+import timber.log.Timber
 
 
-open class CustomPeerConnectionObserver(var logTag: String) : PeerConnection.Observer {
-    override fun onAddTrack(rtpReceiver: RtpReceiver, mediaStreams: Array<out MediaStream>?) {
-        Log.d(logTag, "onAddTrack() called with: rtpReceiver = [$rtpReceiver] and mediaStreams= [$mediaStreams]")
-    }
-
+open class CustomPeerConnectionObserver : PeerConnection.Observer {
     init {
-        this.logTag = "${this.logTag} $logTag"
+        Timber.tag("PeerConnectionObserver")
+    }
+    override fun onAddTrack(rtpReceiver: RtpReceiver, mediaStreams: Array<out MediaStream>?) {
+        Timber.d("onAddTrack() called with: rtpReceiver = [$rtpReceiver] and mediaStreams= [$mediaStreams]")
     }
 
     override fun onSignalingChange(signalingState: PeerConnection.SignalingState) {
-        Log.d(logTag, "onSignalingChange() called with: signalingState = [$signalingState]")
+        Timber.d("onSignalingChange() called with: signalingState = [$signalingState]")
     }
 
     override fun onIceConnectionChange(iceConnectionState: PeerConnection.IceConnectionState) {
-        Log.d(logTag, "onIceConnectionChange() called with: iceConnectionState = [$iceConnectionState]")
+        Timber.d("onIceConnectionChange() called with: iceConnectionState = [$iceConnectionState]")
     }
 
     override fun onIceConnectionReceivingChange(b: Boolean) {
-        Log.d(logTag, "onIceConnectionReceivingChange() called with: b = [$b]")
+        Timber.d("onIceConnectionReceivingChange() called with: b = [$b]")
     }
 
     override fun onIceGatheringChange(iceGatheringState: PeerConnection.IceGatheringState) {
-        Log.d(logTag, "onIceGatheringChange() called with: iceGatheringState = [$iceGatheringState]")
+        Timber.d("onIceGatheringChange() called with: iceGatheringState = [$iceGatheringState]")
     }
 
     override fun onIceCandidate(iceCandidate: IceCandidate) {
-        Log.d(logTag, "onIceCandidate() called with: iceCandidate = [$iceCandidate]")
+        Timber.d("onIceCandidate() called with: iceCandidate = [$iceCandidate]")
     }
 
     override fun onIceCandidatesRemoved(iceCandidates: Array<IceCandidate>) {
-        Log.d(logTag, "onIceCandidatesRemoved() called with: iceCandidates = [$iceCandidates]")
+        Timber.d("onIceCandidatesRemoved() called with: iceCandidates = [$iceCandidates]")
     }
 
     override fun onAddStream(mediaStream: MediaStream) {
-        Log.d(logTag, "onAddStream() called with: mediaStream = [$mediaStream]")
+        Timber.d("onAddStream() called with: mediaStream = [$mediaStream]")
     }
 
     override fun onRemoveStream(mediaStream: MediaStream) {
-        Log.d(logTag, "onRemoveStream() called with: mediaStream = [$mediaStream]")
+        Timber.d("onRemoveStream() called with: mediaStream = [$mediaStream]")
     }
 
     override fun onDataChannel(dataChannel: DataChannel) {
-        Log.d(logTag, "onDataChannel() called with: dataChannel = [$dataChannel]")
+        Timber.d("onDataChannel() called with: dataChannel = [$dataChannel]")
     }
 
     override fun onRenegotiationNeeded() {
-        Log.d(logTag, "onRenegotiationNeeded() called")
+        Timber.d("onRenegotiationNeeded() called")
     }
 }
