@@ -22,14 +22,13 @@ class SignallingClient {
     private var callId: String = ""
     private val db = FirebaseFirestore.getInstance()
     private lateinit var docRef: ListenerRegistration
-    private var isChannelReady = false
-    private var isInitiator = false
     var isStarted = false
 
     private var callback: SignalingInterface? = null
 
     private var phoneNode = hashMapOf<String,Any?>()
-    private var iceCandidates = ArrayList<HashMap<String,String>>()
+    private var localIceCandidates = ArrayList<HashMap<String,String>>()
+    private var remoteIceCandidates = ArrayList<HashMap<String,String>>()
 
     fun init(signalingInterface: SignalingInterface) {
         Timber.tag(TAG)
@@ -47,7 +46,6 @@ class SignallingClient {
         db.collection(FIREBASE_COLLECTION_NAME).add(hashMapOf()).addOnSuccessListener { documentReference ->
             callId = documentReference.id
             // room created
-            isInitiator = true
             setupListeners()
             callback?.onRoomReady()
         }
@@ -69,7 +67,6 @@ class SignallingClient {
                     phoneNode = data["phone"] as HashMap<String, Any?>
                 }
                 if (data.containsKey("dispatcher")) {
-                    isChannelReady = true
                     callback?.onNewPeerJoined()
                     val dispatcher = data["dispatcher"] as HashMap<*, *>
                     if (dispatcher.containsKey("answer") && isStarted) {
@@ -77,7 +74,12 @@ class SignallingClient {
                     }
 
                     if (dispatcher.containsKey("iceCandidates") && isStarted) {
-                        callback?.onIceCandidateReceived(dispatcher["iceCandidates"] as HashMap<String, String>)
+                        val iceCandidates = dispatcher["iceCandidates"] as ArrayList<HashMap<String,String>>
+                        val newIceCandidates = iceCandidates.filter { !remoteIceCandidates.contains(it) }
+                        for(ic in newIceCandidates){
+                            callback?.onIceCandidateReceived(ic)
+                        }
+                        remoteIceCandidates = iceCandidates
                     }
                 }
 
@@ -114,9 +116,9 @@ class SignallingClient {
         ic["id"] = iceCandidate.sdpMid
         ic["candidate"] = iceCandidate.sdp
 
-        iceCandidates.add(ic)
+        localIceCandidates.add(ic)
 
-        phoneNode.putAll(hashMapOf("iceCandidates" to iceCandidates))
+        phoneNode.putAll(hashMapOf("iceCandidates" to localIceCandidates))
 
         docData["phone"] = phoneNode
         Timber.d( "created iceCandidate $ic")
