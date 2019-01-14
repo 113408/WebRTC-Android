@@ -133,6 +133,8 @@ class SignallingClient {
         instance = null
         isStarted = false
         docRef.remove()
+        localIceCandidates = ArrayList()
+        remoteIceCandidates = ArrayList()
     }
 
 
