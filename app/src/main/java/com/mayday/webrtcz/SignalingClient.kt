@@ -1,8 +1,18 @@
 package com.mayday.webrtcz
 
 import com.google.firebase.firestore.*
+import okhttp3.ResponseBody
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.http.Body
+import retrofit2.http.Field
+import retrofit2.http.FormUrlEncoded
+import retrofit2.http.POST
 import timber.log.Timber
 
 class SignallingClient {
@@ -45,10 +55,37 @@ class SignallingClient {
         Timber.d( "emitInitStatement() called with: event = create")
         db.collection(FIREBASE_COLLECTION_NAME).add(hashMapOf()).addOnSuccessListener { documentReference ->
             callId = documentReference.id
+            generateFakeIncident()
             // room created
             setupListeners()
             callback?.onRoomReady()
         }
+    }
+
+    private fun generateFakeIncident(){
+        val retrofit = Retrofit.Builder()
+            .addConverterFactory(GsonConverterFactory.create())
+            .baseUrl("http://may-day.org/")
+            .build()
+        retrofit.callbackExecutor()
+        val service = retrofit.create(EmergencyService::class.java)
+        val call = service.fakeEmergency(callId)
+        call.enqueue( object: Callback<ResponseBody> {
+            override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                if (response.isSuccessful) {
+                    Timber.i("Fake emergency created")
+                } else {
+                    val statusCode = response.code()
+                    val errorBody = response.errorBody()
+                    Timber.e("There was an error while creating fake emergency. Error :$errorBody.. Status Code: $statusCode")
+                }
+            }
+
+
+            override fun onFailure(fail: Call<ResponseBody>, t: Throwable) {
+                Timber.e("request to reset password failed $t")
+            }
+        })
     }
 
     private fun setupListeners() {
@@ -135,6 +172,12 @@ class SignallingClient {
         docRef.remove()
         localIceCandidates = ArrayList()
         remoteIceCandidates = ArrayList()
+    }
+
+    interface EmergencyService{
+        @FormUrlEncoded
+        @POST("fake/emergency")
+        fun fakeEmergency(@Field("streamId") streamId: String): Call<ResponseBody>
     }
 
 
