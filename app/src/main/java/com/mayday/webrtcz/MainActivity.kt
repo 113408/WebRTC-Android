@@ -129,7 +129,6 @@ class MainActivity : AppCompatActivity(), View.OnClickListener, SignallingClient
         call.isEnabled = false
         hangup.isEnabled = true
         createPeerConnection()
-        SignallingClient.getInstance().isStarted = true
         doCall()
     }
 
@@ -209,9 +208,9 @@ class MainActivity : AppCompatActivity(), View.OnClickListener, SignallingClient
     /**
      * Remote IceCandidate received
      */
-    override fun onIceCandidateReceived(data: HashMap<String,String>) {
+    override fun onIceCandidateReceived(data: HashMap<String,Any>) {
         try {
-            localPeer?.addIceCandidate( IceCandidate(data["id"], data["label"]!!.toInt(), data["candidate"]))
+            localPeer?.addIceCandidate( IceCandidate(data["id"] as String, (data["label"] as Long).toInt(), data["candidate"] as String ))
         } catch (e: JSONException) {
             e.printStackTrace()
         }

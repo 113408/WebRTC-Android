@@ -2,6 +2,7 @@ package com.mayday.webrtcz
 
 import com.google.firebase.firestore.*
 import okhttp3.ResponseBody
+import org.json.JSONObject
 import org.webrtc.IceCandidate
 import org.webrtc.SessionDescription
 import retrofit2.Call
@@ -30,15 +31,16 @@ class SignallingClient {
     }
 
     private var callId: String = ""
+    private var incidentId: String = ""
     private val db = FirebaseFirestore.getInstance()
     private lateinit var docRef: ListenerRegistration
-    var isStarted = false
+    var isAnswerSet = false
 
     private var callback: SignalingInterface? = null
 
     private var phoneNode = hashMapOf<String,Any?>()
     private var localIceCandidates = ArrayList<HashMap<String,String>>()
-    private var remoteIceCandidates = ArrayList<HashMap<String,String>>()
+    private var remoteIceCandidates = ArrayList<HashMap<String,Any>>()
 
     fun init(signalingInterface: SignalingInterface) {
         Timber.tag(TAG)
@@ -73,6 +75,7 @@ class SignallingClient {
         call.enqueue( object: Callback<ResponseBody> {
             override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
                 if (response.isSuccessful) {
+                    incidentId = JSONObject(response.body()!!.string())["id"].toString()
                     Timber.i("Fake emergency created")
                 } else {
                     val statusCode = response.code()
@@ -106,12 +109,13 @@ class SignallingClient {
                 if (data.containsKey("dispatcher")) {
                     callback?.onNewPeerJoined()
                     val dispatcher = data["dispatcher"] as HashMap<*, *>
-                    if (dispatcher.containsKey("answer") && isStarted) {
+                    if (dispatcher.containsKey("answer") && !isAnswerSet) {
+                        isAnswerSet = true
                         callback?.onAnswerReceived(dispatcher["answer"] as HashMap<String, String>)
                     }
 
-                    if (dispatcher.containsKey("iceCandidates") && isStarted) {
-                        val iceCandidates = dispatcher["iceCandidates"] as ArrayList<HashMap<String,String>>
+                    if (dispatcher.containsKey("iceCandidates")) {
+                        val iceCandidates = dispatcher["iceCandidates"] as ArrayList<HashMap<String,Any>>
                         val newIceCandidates = iceCandidates.filter { !remoteIceCandidates.contains(it) }
                         for(ic in newIceCandidates){
                             callback?.onIceCandidateReceived(ic)
@@ -166,9 +170,10 @@ class SignallingClient {
     }
 
     fun close() {
+        db.collection("incidents").document(incidentId).delete()
+        db.collection(FIREBASE_COLLECTION_NAME).document(callId).delete()
         callback = null
         instance = null
-        isStarted = false
         docRef.remove()
         localIceCandidates = ArrayList()
         remoteIceCandidates = ArrayList()
@@ -186,7 +191,7 @@ class SignallingClient {
 
         fun onAnswerReceived(data: HashMap<String, String>)
 
-        fun onIceCandidateReceived(data: HashMap<String, String>)
+        fun onIceCandidateReceived(data: HashMap<String, Any>)
 
         fun onTryToStart()
 
